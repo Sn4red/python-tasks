@@ -32,4 +32,3 @@ except subprocess.CalledProcessError as error:
     print('stdout: ', error.stdout)
     print('stderr: ', error.stderr)
     print('returncode: ', error.returncode)
-    
