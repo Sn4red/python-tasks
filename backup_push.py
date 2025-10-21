@@ -1,6 +1,6 @@
 import sys
 
-from git import Repo
+from git import Repo, exc
 from utils.logger import log
 from datetime import datetime, timedelta
 
@@ -40,35 +40,56 @@ if any([modified_files, mdr_files, new_files]):
         log('WARNING', 'Please, confirm with y/n.')
 
     if confirmation == 'y':
-        repository.git.add(all = True)
+        staged = False
+        commited = False
 
-        last_commit_message = repository.head.commit.message
-        last_commit_splitted = last_commit_message.split()
-        last_commit_number = int(last_commit_splitted[-2])
-        last_commit_date = last_commit_splitted[-1]
+        try:
+            repository.git.add(all = True)
+            staged = True
 
-        # `date()` is used to remove the time component.
-        # The resulting object is a `date`, not a formatted string, so it will
-        # be formatted below when needed.
-        current_date = datetime.now().date()
-        previous_date = datetime.strptime(last_commit_date, "%m-%d-%Y").date()
+            last_commit_message = repository.head.commit.message
+            last_commit_splitted = last_commit_message.split()
+            last_commit_number = int(last_commit_splitted[-2])
+            last_commit_date = last_commit_splitted[-1]
 
-        if current_date == previous_date:
-            commit_message = (
-                f'Backup {last_commit_number + 1} {last_commit_date}'
-            )
-        else:
-            next_day = previous_date + timedelta(days = 1)
-            reformatted_next_day = next_day.strftime("%m-%d-%Y")
+            # `date()` is used to remove the time component.
+            # The resulting object is a `date`, not a formatted string, so it will
+            # be formatted below when needed.
+            current_date = datetime.now().date()
+            previous_date = datetime.strptime(last_commit_date, "%m-%d-%Y").date()
+
+            if current_date == previous_date:
+                commit_message = (
+                    f'Backup {last_commit_number + 1} {last_commit_date}'
+                )
+            else:
+                next_day = previous_date + timedelta(days = 1)
+                reformatted_next_day = next_day.strftime("%m-%d-%Y")
             
-            commit_message = (
-                f'Backup 1 {reformatted_next_day}'
-            )
+                commit_message = (
+                    f'Backup 1 {reformatted_next_day}'
+                )
 
-        repository.index.commit(commit_message)
-        repository.git.push()
+            repository.index.commit(commit_message)
+            commited = True
+
+            repository.git.push()
                     
-        log('DONE', 'Synced repository with remote.')
+            log('DONE', 'Repository synced with remote.')
+        except exc.GitCommandError as error:
+            # If the flags indicate previous actions, the git commands are
+            # executed to revert the commit and unstage the changes.
+            if commited:
+                repository.git.reset('--soft', 'HEAD~1')
+            if staged:
+                repository.git.reset()
+
+            log('ERROR', 'Git operation failed.')
+
+            print(f'Command: {error.command}')
+            print(f'Status: {error.status}')
+            print(f'Error message: {error.stderr}')
+
     if confirmation == 'n':
         sys.exit()
 else:
